@@ -1,33 +1,36 @@
-#!/bin/bash
-docker rmi $(docker images | grep "^<none" | awk '{print $3}')
-rm -rf hello-jsug
+#docker images | grep "^<none" | awk '{print $3}' | xargs docker rmi -f  > /dev/null
+#docker images | grep "^making/hello-" | awk '{print $3}' | xargs docker rmi -f  > /dev/null
+#docker volume ls | grep pack | awk '{print $2}' | xargs docker volume rm  > /dev/null
+
+rm -rf hello-jjug
+
 . demo-magic.sh
-DEMO_PROMPT="(\w): "
+export DEMO_PROMPT="(\w): "
 clear
 
-TYPE_SPEED=1000
-
+export TYPE_SPEED=1000
+export XMLLINT_INDENT="        "
 
 ############
 
 printf "\033[32m⭐️ Spring InitializrでSpring Boot Projectの雛形を作成します \033[0m\n"
-pe "curl https://start.spring.io/starter.tgz \\
+pe "curl -s https://start.spring.io/starter.tgz \\
   -d javaVersion=11 \\
-  -d artifactId=hello-jsug  \\
-  -d baseDir=hello-jsug \\
-  -d dependencies=web,actuator  \\
+  -d artifactId=hello-jjug  \\
+  -d baseDir=hello-jjug \\
+  -d dependencies=web  \\
   -d packageName=com.example  \\
-  -d applicationName=HelloJsugApplication | tar -xzvf -"
+  -d applicationName=HelloJjugApplication | tar -xzvf -"
 
 ############
 
 printf "\033[32m⭐️ ディレクトリを変更します \033[0m\n"
-pe "cd hello-jsug"
+pe "cd hello-jjug"
 
 ############
 
 printf "\033[32m⭐️ ソースコードを修正します \033[0m\n"
-pe "cat <<'EOF' > src/main/java/com/example/HelloJsugApplication.java
+pe "cat <<'EOF' > src/main/java/com/example/HelloJjugApplication.java
 package com.example;
 
 import org.springframework.boot.SpringApplication;
@@ -35,71 +38,64 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@SpringBootApplication
+@SpringBootApplication(proxyBeanMethods = false)
 @RestController
-public class HelloJsugApplication {
+public class HelloJjugApplication {
 
         @GetMapping(\"/\") 
         public String hello() {
-                return \"Hello JSUG!\";
+                return \"Hello JJUG!\";
         }
 
         public static void main(String[] args) {
-                SpringApplication.run(HelloJsugApplication.class, args);
+                SpringApplication.run(HelloJjugApplication.class, args);
         }
 }
 EOF"
-
 ############
 
-TYPE_SPEED=50
-printf "\033[32m⭐️ Pack CLIでコンテナイメージをBuildします \033[0m\n"
-pe "pack build making/hello-jsug --builder cloudfoundry/cnb:bionic --no-pull -v"
+export TYPE_SPEED=50
 
-############
+printf "\033[32m⭐️ Cloud Native Buildpacksで普通のコンテナイメージをBuildします \033[0m\n"
+pe "./mvnw spring-boot:build-image -Dspring-boot.build-image.imageName=making/hello-jjug:bellsoft -DskipTests"
 
 printf "\033[32m⭐️ Dockerイメージを確認します \033[0m\n"
-
 pe "docker images"
-
-############
 
 printf "\033[32m⭐️ Dockerイメージを実行します \033[0m\n"
 pe "docker run --rm  \\
-   -p 8080:8080 \\
-   -e MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE='*' \\
-  making/hello-jsug"
-
-############
+    -p 8080:8080  \\
+    making/hello-jjug:bellsoft"
 
 printf "\033[32m⭐️ ソースコードを更新します \033[0m\n"
-pe "sed -i '' -e 's/JSUG/JSUG 🍃/g' src/main/java/com/example/HelloJsugApplication.java"
+pe "sed -i '' -e 's/JJUG/JJUG 🍃/g' src/main/java/com/example/HelloJjugApplication.java"
 
-############
-
-printf "\033[32m⭐️ バナーを追加します \033[0m\n"
-pe "cp ../banner.txt src/main/resources/"
-
-############
-
-printf "\033[32m⭐️ Pack CLIでコンテナイメージをBuildします \033[0m\n"
-pe "pack build making/hello-jsug --builder cloudfoundry/cnb:bionic --no-pull -v"
-
-############
-
-printf "\033[32m⭐️ Dockerイメージを確認します \033[0m\n"
-
-pe "docker images"
-
-############
+printf "\033[32m⭐️ Cloud Native Buildpacksで普通のコンテナイメージを再Buildします \033[0m\n"
+pe "./mvnw spring-boot:build-image -Dspring-boot.build-image.imageName=making/hello-jjug:bellsoft -DskipTests"
 
 printf "\033[32m⭐️ Dockerイメージを実行します \033[0m\n"
 pe "docker run --rm  \\
     -p 8080:8080  \\
-    making/hello-jsug"
+    making/hello-jjug:bellsoft"
 
-printf "\033[32m⭐️ Ansi Colorを有効にします \033[0m\n"
+printf "\033[32m⭐️ pom.xmlにnative image用のCustomBuilderの設定をします。 \033[0m\n"
+pe "sed -i.bak 's|<artifactId>spring-boot-maven-plugin</artifactId>|<artifactId>spring-boot-maven-plugin</artifactId><!-- ✨ここから✨ --><configuration><image><builder>making/java-native-image-cnb-builder</builder><env><BP_BOOT_NATIVE_IMAGE>1</BP_BOOT_NATIVE_IMAGE></env></image></configuration><!-- ✨ここまで✨ --><!-- 詳細は https://blog.ik.am/entries/542 -->|' pom.xml"
+
+mv pom.xml pom.xml.bak
+xmllint --format pom.xml.bak > pom.xml
+find . -name '*.bak' -exec rm -f {} \;
+
+printf "\033[32m⭐️ pom.xmlを確認します。 \033[0m\n"
+pe "cat pom.xml"
+
+
+printf "\033[32m⭐️ Cloud Native Buildpacksでnative-imageのコンテナイメージをBuildします \033[0m\n"
+pe "./mvnw spring-boot:build-image -Dspring-boot.build-image.imageName=making/hello-jjug:native -DskipTests"
+
+printf "\033[32m⭐️ Dockerイメージを確認します \033[0m\n"
+pe "docker images"
+
+printf "\033[32m⭐️ Dockerイメージを実行します \033[0m\n"
 pe "docker run --rm  \\
     -p 8080:8080  \\
-    -e SPRING_OUTPUT_ANSI_ENABLED=ALWAYS  \\
-    making/hello-jsug"
+    making/hello-jjug:native"
